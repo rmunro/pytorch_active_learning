@@ -21,13 +21,13 @@ After the initial iteration of training, which will just be on randomly-chosen d
 ## Getting started: 
 
 if you clone this repo and already have PyTorch installed, you should be able to get going immediately:
-`
-git clone https://github.com/rmunro/pytorch_active_learning  
 
-cd pytorch_active_learning  
+`git clone https://github.com/rmunro/pytorch_active_learning`
 
-python active_learning_basics.py  
-`
+`cd pytorch_active_learning`  
+
+`python active_learning_basics.py`
+
 
 ## Requirements: 
 The code assumes that you are using python3.6 or later. 
@@ -46,9 +46,9 @@ https://docs.aws.amazon.com/dlami/latest/devguide/tutorial-pytorch.html
 
 ### Google Cloud
 I recommend using a PyTorch image for a Deep Learning virtual machine on Google Cloud, because PyTorch is already installed. Both the CPU and GPU should work:
-`pytorch-latest-cpu  
+`pytorch-latest-cpu`
 
-pytorch-latest-gpu`
+`pytorch-latest-gpu`
 
 For more details on using PyTorch on Google Cloud, see:  
 https://cloud.google.com/deep-learning-vm/docs/images
