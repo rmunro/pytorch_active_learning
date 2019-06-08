@@ -77,6 +77,7 @@ Mac users should also make sure they are using python3.6 or later, as Mac's stil
 
 Currently, the data used is from the "Million News Headlines" dataset posted on Kaggle:  
  https://www.kaggle.com/therohk/million-headlines
+The data is taken from headlines from Australia's "ABC" news organization. They are in Austalian English, which will be closer to UK English than US English, but a complete lexical subset of UK & US English, differing only in that some words in Australian English have meanings that do not occur in UK or US English.
  
 However, I intend to replace it soonish. The headlines are all lower-case and stripped of all characters other than a-z and 0-9: no punctuation, accented characters, etc. Many of the headlines seem to be truncated for some reason, too. So, I will update it with a dataset that is closer to true headlines. 
 
