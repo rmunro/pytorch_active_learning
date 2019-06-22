@@ -2,16 +2,12 @@
 
 """INTRODUCTION TO ACTIVE LEARNING
 
-A simple text classification algorithm in PyTorch 
+An introduction to outlier detection for Chapter 7 of:
+"Human-in-the-Loop Machine Learning"   
 
-This is an open source example to accompany the book:
-"Human-in-the-Loop Machine Learning"
+This builds on the simple text classification algorithm in PyTorch from
+Chapter 2
 
-This example trys to classify news headlines into one of two categories:
-  disaster-related
-  not disaster-related
-
-It looks for low confidence items that it humans should review
 
 """
 
