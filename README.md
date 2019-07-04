@@ -7,7 +7,7 @@ Human-in-the-Loop Machine Learning
 Robert Munro  
 Manning Publications  
 
-I'll link to the Chapter when it comes out electronically.
+https://www.manning.com/books/human-in-the-loop-machine-learning
 
 ## What to expect:
 
