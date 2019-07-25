@@ -343,8 +343,14 @@ def get_random_items(unlabeled_data, number = 10):
 
 def get_rank(value, rankings):
     """ get the rank of the value in an ordered array as a percentage 
+
+
+    Keyword arguments:
+        value -- the value for which we want to return the ranked value
+        rankings -- the ordered array in which to determine the value's ranking
     
-        returns linear distance between the indexes where value occurs    
+    returns linear distance between the indexes where value occurs, in the
+    case that there is not an exact match with the ranked values    
     """
     
     index = 0 # default: ranking = 0
@@ -374,14 +380,18 @@ def get_rank(value, rankings):
 def get_cluster_samples(data, num_clusters=5, max_epochs=5, limit=5000):
     """Create clusters using cosine similarity
     
+
+    Keyword arguments:
+        data -- data to be clustered
+        num_clusters -- the number of clusters to create
+        max_epochs -- maximum number of epochs to create clusters
+        limit -- sample only this many items for faster clustering (-1 = no limit)
+    
     Creates clusters by the K-Means clustering algorithm,
     using cosine similarity instead of more common euclidean distance
     
-    Creates num_clusters clusters (default 20)
-    until converged or max_epochs passes over the data 
-    
-    Limits to the first limit items, or limit = -1 means no limit
-    
+    Creates clusters until converged or max_epochs passes over the data 
+        
     """ 
     
     if limit > 0:
@@ -407,12 +417,15 @@ def get_cluster_samples(data, num_clusters=5, max_epochs=5, limit=5000):
 
 def get_representative_samples(training_data, unlabeled_data, number=20, limit=10000):
     """Gets the most representative unlabeled items, compared to training data
+
+    Keyword arguments:
+        training_data -- data with a label, that the current model is trained on
+        unlabeled_data -- data that does not yet have a label
+        number -- number of items to sample
+        limit -- sample from only this many items for faster sampling (-1 = no limit)
+
+    Creates one cluster for each data set: training and unlabeled
     
-    Creates one cluster for each data set 
-    
-    returns number items 
-    
-    Limits to the first limit items, or limit = -1 means no limit
     
     """ 
         
@@ -446,6 +459,19 @@ def get_representative_samples(training_data, unlabeled_data, number=20, limit=1
 
 
 def get_adaptive_representative_samples(training_data, unlabeled_data, number=20, limit=5000):
+    """Adaptively gets the most representative unlabeled items, compared to training data
+    
+    Keyword arguments:
+        training_data -- data with a label, that the current model is trained on
+        unlabeled_data -- data that does not yet have a label
+        number -- number of items to sample
+        limit -- sample from only this many items for faster sampling (-1 = no limit)
+        
+    Adaptive variant of get_representative_samples() where the training_data is updated
+    after each individual selection in order to increase diversity of samples
+    
+    """
+    
     samples = []
     
     for i in range(0, number):
@@ -460,7 +486,12 @@ def get_adaptive_representative_samples(training_data, unlabeled_data, number=20
 def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=10000):
     """Get outliers from unlabeled data in training data
 
-    Returns number outliers                                                                                
+    Keyword arguments:
+        model -- current Machine Learning model for this task
+        unlabeled_data -- data that does not yet have a label
+        validation_data -- held out data drawn from the same distribution as the training data
+        number -- number of items to sample
+        limit -- sample from only this many items for faster sampling.
 
     An outlier is defined as 
     unlabeled_data with the lowest average from rank order of logits
@@ -494,7 +525,7 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
                         
             v += 1
     
-    # Step 3: rank-order the validation scores 
+    # Step 2: rank-order the validation scores 
     v=0
     for validation in validation_rankings:
         validation.sort() 
@@ -610,43 +641,6 @@ def evaluate_model(model, evaluation_data):
     return[fscore, auc]
 
 
-# TODO DELETE
-
-
-def get_low_conf_unlabeled(model, unlabeled_data, number=80, limit=100000):
-    confidences = []
-    if limit == -1: # we're predicting confidence on *everything* this will take a while
-        print("Get confidences for unlabeled data (this might take a while)")
-    else: 
-        # only apply the model to a limited number of items
-        shuffle(unlabeled_data)
-        unlabeled_data = unlabeled_data[:limit]
-    
-    with torch.no_grad():
-        for item in unlabeled_data:
-            textid = item[0]
-            if textid in already_labeled:
-                continue
-
-            text = item[1]
-
-            feature_vector = make_feature_vector(text.split(), feature_index)
-            log_probs = model(feature_vector)
-
-            # get confidence that it is related
-            prob_related = math.exp(log_probs.data.tolist()[0][1]) 
-            
-            if prob_related < 0.5:
-                confidence = 1 - prob_related
-            else:
-                confidence = prob_related 
-
-            item[3] = "low confidence"
-            item[4] = confidence
-            confidences.append(item)
-
-    confidences.sort(key=lambda x: x[4])
-    return confidences[:number:]
 
 
 
