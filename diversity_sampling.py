@@ -1,17 +1,24 @@
 #!/usr/bin/env python
 
-"""INTRODUCTION TO ACTIVE LEARNING
+"""DIVERSITY SAMPLING
+ 
+Diversity Sampling examples for Active Learning in PyTorch 
 
-A simple text classification algorithm in PyTorch 
-
-This is an open source example to accompany Chapter 2 from the book:
+This is an open source example to accompany Chapter 4 from the book:
 "Human-in-the-Loop Machine Learning"
 
 This example tries to classify news headlines into one of two categories:
   disaster-related
   not disaster-related
 
-It looks for low confidence items and outliers humans should review
+It looks for outliers according to four strategies:
+1. Model-based outlier sampling
+2. Cluster-based sampling
+3. Representative sampling
+4. Adaptive Representative sampling
+
+You can uncomment the relevant calling code at the end of this file for each strategy
+
 
 """
 
@@ -25,8 +32,16 @@ import datetime
 import csv
 import re
 import os
+import getopt
+
 from random import shuffle
 from collections import defaultdict	
+from numpy import rank
+
+import uncertainty_sampling_pytorch
+from pytorch_clusters import CosineClusters 
+from pytorch_clusters import Cluster
+
 
 
 __author__ = "Robert Munro"
@@ -36,7 +51,8 @@ __version__ = "1.0.1"
 # settings
 
 minimum_evaluation_items = 1200 # annotate this many randomly sampled items first for evaluation data before creating training data
-minimum_training_items = 400 # minimum number of training items before we first train a model
+minimum_validation_items = 200 # annotate this many randomly sampled items first for validation data before creating training data
+minimum_training_items = 100 # minimum number of training items before we first train a model
 
 epochs = 10 # number of epochs per training session
 select_per_epoch = 200  # number to select per epoch per label
@@ -51,8 +67,8 @@ unlabeled_data = "unlabeled_data/unlabeled_data.csv"
 evaluation_related_data = "evaluation_data/related.csv"
 evaluation_not_related_data = "evaluation_data/not_related.csv"
 
-#validation_related_data # not used in this example
-#validation_not_related_data # not used in this example
+validation_related_data  = "validation_data/related.csv" 
+validation_not_related_data = "validation_data/not_related.csv" 
 
 training_related_data = "training_data/related.csv"
 training_not_related_data = "training_data/not_related.csv"
@@ -60,6 +76,7 @@ training_not_related_data = "training_data/not_related.csv"
 
 already_labeled = {} # tracking what is already labeled
 feature_index = {} # feature mapping for one-hot encoding
+
 
 
 def load_data(filepath, skip_already_labeled=False):
@@ -103,6 +120,9 @@ def write_data(filepath, data):
 # LOAD ALL UNLABELED, TRAINING, VALIDATION, AND EVALUATION DATA
 training_data = load_data(training_related_data) + load_data(training_not_related_data)
 training_count = len(training_data)
+
+validation_data = load_data(validation_related_data) + load_data(validation_not_related_data)
+validation_count = len(validation_data)
     
 evaluation_data = load_data(evaluation_related_data) + load_data(evaluation_not_related_data)
 evaluation_count = len(evaluation_data)
@@ -218,12 +238,17 @@ class SimpleTextClassifier(nn.Module):  # inherit pytorch's nn.Module
         self.linear1 = nn.Linear(vocab_size, 128)
         self.linear2 = nn.Linear(128, num_labels)
 
-    def forward(self, feature_vec):
-        # Define how data is passed through the model
+    def forward(self, feature_vec, return_all_layers=False):
+        # Define how data is passed through the model and what gets returned
 
         hidden1 = self.linear1(feature_vec).clamp(min=0) # ReLU
         output = self.linear2(hidden1)
-        return F.log_softmax(output, dim=1)
+        log_softmax = F.log_softmax(output, dim=1)
+
+        if return_all_layers:
+            return [hidden1, output, log_softmax]
+        else:
+            return log_softmax
                                 
 
 def make_feature_vector(features, feature_index):
@@ -299,41 +324,6 @@ def train_model(training_data, validation_data = "", evaluation_data = "", num_l
     return model_path
 
 
-def get_low_conf_unlabeled(model, unlabeled_data, number=80, limit=10000):
-    confidences = []
-    if limit == -1: # we're predicting confidence on *everything* this will take a while
-    	print("Get confidences for unlabeled data (this might take a while)")
-    else: 
-    	# only apply the model to a limited number of items
-    	shuffle(unlabeled_data)
-    	unlabeled_data = unlabeled_data[:limit]
-    
-    with torch.no_grad():
-        for item in unlabeled_data:
-            textid = item[0]
-            if textid in already_labeled:
-                continue
-
-            text = item[1]
-
-            feature_vector = make_feature_vector(text.split(), feature_index)
-            log_probs = model(feature_vector)
-
-            # get confidence that it is related
-            prob_related = math.exp(log_probs.data.tolist()[0][1]) 
-            
-            if prob_related < 0.5:
-                confidence = 1 - prob_related
-            else:
-                confidence = prob_related 
-
-            item[3] = "low confidence"
-            item[4] = confidence
-            confidences.append(item)
-
-    confidences.sort(key=lambda x: x[4])
-    return confidences[:number:]
-
 
 def get_random_items(unlabeled_data, number = 10):
     shuffle(unlabeled_data)
@@ -351,57 +341,212 @@ def get_random_items(unlabeled_data, number = 10):
     return random_items
 
 
-def get_outliers(training_data, unlabeled_data, number=10):
+def get_rank(value, rankings):
+    """ get the rank of the value in an ordered array as a percentage 
+    
+        returns linear distance between the indexes where value occurs    
+    """
+    
+    index = 0 # default: ranking = 0
+    
+    for ranked_number in rankings:
+        if value < ranked_number:
+            break #NB: this O(N) loop could be optimized to O(log(N))
+        index += 1        
+    
+    if(index >= len(rankings)):
+        index = len(rankings) # maximum: ranking = 1
+        
+    elif(index > 0):
+        # get linear interpolation between the two closest indexes 
+        
+        diff = rankings[index] - rankings[index - 1]
+        perc = value - rankings[index - 1]
+        linear = perc / diff
+        index = float(index - 1) + linear
+    
+    absolute_ranking = index / len(rankings)
+
+    return(absolute_ranking)
+
+
+
+def get_cluster_samples(data, num_clusters=5, max_epochs=5, limit=5000):
+    """Create clusters using cosine similarity
+    
+    Creates clusters by the K-Means clustering algorithm,
+    using cosine similarity instead of more common euclidean distance
+    
+    Creates num_clusters clusters (default 20)
+    until converged or max_epochs passes over the data 
+    
+    Limits to the first limit items, or limit = -1 means no limit
+    
+    """ 
+    
+    if limit > 0:
+        shuffle(data)
+        data = data[:limit]
+    
+    cosine_clusters = CosineClusters(num_clusters)
+    
+    cosine_clusters.add_random_training_items(data)
+    
+    for i in range(0, max_epochs):
+        print("Epoch "+str(i))
+        added = cosine_clusters.add_items_to_best_cluster(data)
+        if added == 0:
+            break
+
+    centroids = cosine_clusters.get_centroids()
+    outliers = cosine_clusters.get_outliers()
+    randoms = cosine_clusters.get_randoms()
+    
+    return centroids + outliers + randoms
+         
+
+def get_representative_samples(training_data, unlabeled_data, number=20, limit=10000):
+    """Gets the most representative unlabeled items, compared to training data
+    
+    Creates one cluster for each data set 
+    
+    returns number items 
+    
+    Limits to the first limit items, or limit = -1 means no limit
+    
+    """ 
+        
+    if limit > 0:
+        shuffle(training_data)
+        training_data = training_data[:limit]
+        shuffle(unlabeled_data)
+        unlabeled_data = unlabeled_data[:limit]
+        
+    training_cluster = Cluster()
+    for item in training_data:
+        training_cluster.add_to_cluster(item)
+    
+    unlabeled_cluster = Cluster()    
+    for item in unlabeled_data:
+        unlabeled_cluster.add_to_cluster(item)
+
+    
+    for item in unlabeled_data:
+        training_score = training_cluster.cosine_similary(item)
+        unlabeled_score = unlabeled_cluster.cosine_similary(item)
+        
+        representativeness = unlabeled_score - training_score
+        
+        item[3] = "representative"            
+        item[4] = representativeness
+            
+                 
+    unlabeled_data.sort(reverse=True, key=lambda x: x[4])       
+    return unlabeled_data[:number:]       
+
+
+def get_adaptive_representative_samples(training_data, unlabeled_data, number=20, limit=5000):
+    samples = []
+    
+    for i in range(0, number):
+        print("Epoch "+str(i))
+        representative_item = get_representative_samples(training_data, unlabeled_data, 1, limit)[0]
+        samples.append(representative_item)
+        unlabeled_data.remove(representative_item)
+        
+    return samples
+
+
+def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=10000):
     """Get outliers from unlabeled data in training data
 
-    Returns number outliers
-    
-    An outlier is defined as the percent of words in an item in 
-    unlabeled_data that do not exist in training_data
+    Returns number outliers                                                                                
+
+    An outlier is defined as 
+    unlabeled_data with the lowest average from rank order of logits
+    where rank order is defined by validation data inference 
+
     """
-    outliers = []
 
-    total_feature_counts = defaultdict(lambda: 0)
+    validation_rankings = [] # 2D array, every neuron by ordered list of output on validation data per neuron    
+
+    # Step 1: get per-neuron scores from validation data
+    with torch.no_grad():
+        v=0
+        for item in validation_data:
+            textid = item[0]
+            text = item[1]
+            
+            feature_vector = make_feature_vector(text.split(), feature_index)
+            hidden, logits, log_probs = model(feature_vector, return_all_layers=True)  
     
-    for item in training_data:
-        text = item[1]
-        features = text.split()
+            neuron_outputs = logits.data.tolist()[0] #logits
+            
+            # initialize array if we haven't yet
+            if len(validation_rankings) == 0:
+                for output in neuron_outputs:
+                    validation_rankings.append([0.0] * len(validation_data))
+                        
+            n=0
+            for output in neuron_outputs:
+                validation_rankings[n][v] = output
+                n += 1
+                        
+            v += 1
+    
+    # Step 3: rank-order the validation scores 
+    v=0
+    for validation in validation_rankings:
+        validation.sort() 
+        validation_rankings[v] = validation
+        v += 1
+            
 
-        for feature in features:
-            total_feature_counts[feature] += 1
-                
-    while(len(outliers) < number):
-        top_outlier = []
-        top_match = float("inf")
+    # Step 3: iterate unlabeled items
 
+    outliers = []
+    if limit == -1: # we're drawing from *everything* this will take a while                                               
+        print("Get model scores for unlabeled data (this might take a while)")
+    else:
+        # only apply the model to a limited number of items                                                                            
+        shuffle(unlabeled_data)
+        unlabeled_data = unlabeled_data[:limit]
+
+    with torch.no_grad():
         for item in unlabeled_data:
             textid = item[0]
             if textid in already_labeled:
                 continue
 
             text = item[1]
-            features = text.split()
-            total_matches = 1 # start at 1 for slight smoothing 
-            for feature in features:
-                if feature in total_feature_counts:
-                    total_matches += total_feature_counts[feature]
 
-            ave_matches = total_matches / len(features)
-            if ave_matches < top_match:
-                top_match = ave_matches
-                top_outlier = item
+            feature_vector = make_feature_vector(text.split(), feature_index)
+            hidden, logits, log_probs = model(feature_vector, return_all_layers=True)            
+            
+            neuron_outputs = logits.data.tolist()[0] #logits
+   
+            total_rank = 0;
+            
+            n=0
+            ranks = []
+            for output in neuron_outputs:
+                rank = get_rank(output, validation_rankings[n])
+                ranks.append(rank)
+                total_rank += rank
+                n += 1 
+            
+            item[3] = "logit_rank_outlier"
+            
+            item[4] = 1 - (sum(ranks) / len(neuron_outputs)) # average rank
+            # TODO add lowest rank
+            
+            outliers.append(item)
+            
+    outliers.sort(reverse=True, key=lambda x: x[4])       
+    return outliers[:number:]       
+            
 
-        # add this outlier to list and update what is 'labeled', 
-        # assuming this new outlier will get a label
-        top_outlier[3] = "outlier"
-        outliers.append(top_outlier)
-        text = top_outlier[1]
-        features = text.split()
-        for feature in features:
-            total_feature_counts[feature] += 1
 
-    return outliers
-    
 
 
 def evaluate_model(model, evaluation_data):
@@ -465,6 +610,45 @@ def evaluate_model(model, evaluation_data):
     return[fscore, auc]
 
 
+# TODO DELETE
+
+
+def get_low_conf_unlabeled(model, unlabeled_data, number=80, limit=100000):
+    confidences = []
+    if limit == -1: # we're predicting confidence on *everything* this will take a while
+        print("Get confidences for unlabeled data (this might take a while)")
+    else: 
+        # only apply the model to a limited number of items
+        shuffle(unlabeled_data)
+        unlabeled_data = unlabeled_data[:limit]
+    
+    with torch.no_grad():
+        for item in unlabeled_data:
+            textid = item[0]
+            if textid in already_labeled:
+                continue
+
+            text = item[1]
+
+            feature_vector = make_feature_vector(text.split(), feature_index)
+            log_probs = model(feature_vector)
+
+            # get confidence that it is related
+            prob_related = math.exp(log_probs.data.tolist()[0][1]) 
+            
+            if prob_related < 0.5:
+                confidence = 1 - prob_related
+            else:
+                confidence = prob_related 
+
+            item[3] = "low confidence"
+            item[4] = confidence
+            confidences.append(item)
+
+    confidences.sort(key=lambda x: x[4])
+    return confidences[:number:]
+
+
 
 if evaluation_count <  minimum_evaluation_items:
     #Keep adding to evaluation data first
@@ -490,6 +674,33 @@ if evaluation_count <  minimum_evaluation_items:
     # append evaluation data
     append_data(evaluation_related_data, related)
     append_data(evaluation_not_related_data, not_related)
+
+if validation_count <  minimum_validation_items:
+    #Keep adding to evaluation data first
+    print("Creating validation data:\n")
+
+    shuffle(data)
+    needed = minimum_validation_items - validation_count
+    data = data[:needed]
+    print(str(needed)+" more annotations needed")
+
+    data = get_annotations(data) 
+    
+    related = []
+    not_related = []
+
+    for item in data:
+        label = item[2]    
+        if label == "1":
+            related.append(item)
+        elif label == "0":
+            not_related.append(item)
+
+    # append validation data
+    append_data(validation_related_data, related)
+    append_data(validation_not_related_data, not_related)
+
+
 
 elif training_count < minimum_training_items:
     # lets create our first training data! 
@@ -517,25 +728,53 @@ elif training_count < minimum_training_items:
     append_data(training_not_related_data, not_related)
 else:
     # lets start Active Learning!! 
+    print("Sampling via Diversity Learning:\n")
 
-	# Train new model with current training data
+    sampled_data = get_random_items(data, number=5)
+
+
+    # GET MODEL-BASED OUTLIER SAMPLES
+    '''
+    print("Sampling Model Outliers\n")
+    # train on 90% of the data, hold out 10% for validation
+    new_training_data = training_data[:int(len(training_data)*0.9)] 
+    validation_data = training_data[len(new_training_data):] 
+    
     vocab_size = create_features()
     model_path = train_model(training_data, evaluation_data=evaluation_data, vocab_size=vocab_size)
-
-    print("Sampling via Active Learning:\n")
-
     model = SimpleTextClassifier(2, vocab_size)
     model.load_state_dict(torch.load(model_path))
 
-	# get 100 items per iteration with the following breakdown of strategies:
-    random_items = get_random_items(data, number=10)
-    low_confidences = get_low_conf_unlabeled(model, data, number=80)
-    outliers = get_outliers(training_data+random_items+low_confidences, data, number=10)
+    model_outliers = get_model_outliers(model, data, validation_data, number=95)
+    sampled_data +=  model_outliers 
 
-    sampled_data = random_items + low_confidences + outliers
+    '''
+
+    # GET CLUSTER-BASED SAMPLES
+    '''
+    print("Sampling via Clustering\n")
+    cluster_samples = get_cluster_samples(data, num_clusters=32)
+    sampled_data += cluster_samples 
+    '''
+
+    # GET REPRESENTATIVE SAMPLES
+    '''    
+    print("Sampling via Representative Sampling\n")
+    representative_samples = get_representative_samples(training_data, data, number=95)
+    sampled_data += representative_samples 
+    '''
+
+    # GET REPRESENTATIVE SAMPLES USING ADAPTIVE SAMPLING
+    '''
+    print("Sampling via Adaptive Representative Sampling\n")    
+    representative_adaptive_samples = get_adaptive_representative_samples(training_data, data, number=95)
+    sampled_data += representative_adaptive_samples 
+    '''
+    
     shuffle(sampled_data)
     
     sampled_data = get_annotations(sampled_data)
+    
     related = []
     not_related = []
     for item in sampled_data:
@@ -544,8 +783,8 @@ else:
             related.append(item)
         elif label == "0":
             not_related.append(item)
-
-    # append training data
+        
+    # append training data files
     append_data(training_related_data, related)
     append_data(training_not_related_data, not_related)
     
