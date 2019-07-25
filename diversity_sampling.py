@@ -11,7 +11,7 @@ This example tries to classify news headlines into one of two categories:
   disaster-related
   not disaster-related
 
-It looks for outliers according to four strategies:
+It contains four Active Learning strategies:
 1. Model-based outlier sampling
 2. Cluster-based sampling
 3. Representative sampling
