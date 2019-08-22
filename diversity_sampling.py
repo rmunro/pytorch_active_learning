@@ -79,12 +79,13 @@ number_cluster_based = 0
 number_representative = 0
 number_adaptive_representative = 0
 
+verbose = False
 
 cli_args = sys.argv
 arg_list = cli_args[1:]
 
-unix_options = "r:m:c:p:a:"
-gnu_options = ["random=", "model_outliers=", "cluster_based=","representative=","adaptive_representative="]
+unix_options = "r:m:c:p:a:v"
+gnu_options = ["random_remaining=", "model_outliers=", "cluster_based=","representative=","adaptive_representative=", "verbose"]
 
 try:
     arguments, values = getopt.getopt(arg_list, "", gnu_options)
@@ -94,7 +95,7 @@ except getopt.error as err:
     sys.exit(2)
 
 for arg, value in arguments:
-    if arg in ("--random", "r"):
+    if arg in ("--random_remaining", "r"):
         number_random = int(value)
     if arg in ("--model_outliers", "m"):
         number_model_outliers = int(value)
@@ -104,7 +105,9 @@ for arg, value in arguments:
         number_representative = int(value)
     if arg in ("--adaptive_representative", "a"):
         number_adaptive_representative = int(value)
-        
+    if arg in ("--verbose", "v"):
+        verbose = True
+    
 
 
 already_labeled = {} # tracking what is already labeled
@@ -309,7 +312,8 @@ def train_model(training_data, validation_data = "", evaluation_data = "", num_l
 
     # epochs training
     for epoch in range(epochs):
-        print("Epoch: "+str(epoch))
+        if verbose:
+            print("Epoch: "+str(epoch))
         current = 0
 
         # make a subset of data to use in this epoch
@@ -441,7 +445,7 @@ def get_cluster_samples(data, num_clusters=5, max_epochs=5, limit=5000):
 
     centroids = cosine_clusters.get_centroids()
     outliers = cosine_clusters.get_outliers()
-    randoms = cosine_clusters.get_randoms()
+    randoms = cosine_clusters.get_randoms(3, verbose)
     
     return centroids + outliers + randoms
          
@@ -533,6 +537,9 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
     validation_rankings = [] # 2D array, every neuron by ordered list of output on validation data per neuron    
 
     # Step 1: get per-neuron scores from validation data
+    if verbose:
+        print("Getting neuron activation scores from validation data")
+
     with torch.no_grad():
         v=0
         for item in validation_data:
@@ -565,10 +572,12 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
             
 
     # Step 3: iterate unlabeled items
+    if verbose:
+        print("Getting rankings for unlabeled data")
 
     outliers = []
-    if limit == -1: # we're drawing from *everything* this will take a while                                               
-        print("Get model scores for unlabeled data (this might take a while)")
+    if limit == -1 and len(unlabeled_data) > 10000 and verbose: # we're drawing from *a lot* of data this will take a while                                               
+        print("Get rankings for a large amount of unlabeled data: this might take a while")
     else:
         # only apply the model to a limited number of items                                                                            
         shuffle(unlabeled_data)
@@ -756,7 +765,7 @@ else:
     
     # GET RANDOM SAMPLES
     if number_random > 0:
-        print("Sampling "+str(number_random)+" Random Items\n")
+        print("Sampling "+str(number_random)+" Random Remaining Items\n")
         sampled_data += get_random_items(data, number=number_random)
 
 
@@ -778,10 +787,12 @@ else:
 
     # GET CLUSTER-BASED SAMPLES
     if number_cluster_based > 0:
-        print("Sampling "+str(number_cluster_based)+" via Clustering\n")
-        num_clusters = math.ceil(number_cluster_based / 3) # sampling 3 items per cluster by default
-        if num_clusters * 3 > number_cluster_based:
-            print("Adjusting sample to "+str(num_clusters * 3)+" to get an equal number per sample\n")
+        print("Sampling "+str(number_cluster_based)+" via Clustering")
+        num_clusters = math.ceil(number_cluster_based / 5) # sampling 3 items per cluster by default
+        print("Creating "+str(num_clusters)+" Clusters")
+
+        if num_clusters * 5 > number_cluster_based:
+            print("Adjusting sample to "+str(num_clusters * 5)+" to get an equal number per sample\n")
         
         cluster_samples = get_cluster_samples(data, num_clusters=num_clusters)
         sampled_data += cluster_samples 

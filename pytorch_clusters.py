@@ -142,10 +142,10 @@ class CosineClusters():
         return outliers
  
          
-    def get_randoms(self, number_per_cluster=1):  
+    def get_randoms(self, number_per_cluster=1, verbose=False):  
         randoms = []
         for cluster in self.clusters:
-            randoms += cluster.get_random_members(number_per_cluster)
+            randoms += cluster.get_random_members(number_per_cluster, verbose)
         
         return randoms
    
@@ -282,7 +282,7 @@ class Cluster():
 
 
 
-    def get_random_members(self, number=1):
+    def get_random_members(self, number=1, verbose=False):
         if len(self.members) == 0:
             return []        
         
@@ -298,6 +298,11 @@ class Cluster():
                 item[4] = self.cosine_similary(item)
 
                 randoms.append(item)
+         
+        if verbose:
+            print("\nRandomly items selected from cluster:")
+            for item in randoms:
+                print("\t"+item[1])         
                 
         return randoms
     
