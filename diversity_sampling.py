@@ -32,7 +32,7 @@ import datetime
 import csv
 import re
 import os
-import getopt
+import getopt, sys
 
 from random import shuffle
 from collections import defaultdict	
@@ -43,13 +43,12 @@ from pytorch_clusters import CosineClusters
 from pytorch_clusters import Cluster
 
 
-
 __author__ = "Robert Munro"
 __license__ = "MIT"
 __version__ = "1.0.1"
 
+   
 # settings
-
 minimum_evaluation_items = 1200 # annotate this many randomly sampled items first for evaluation data before creating training data
 minimum_validation_items = 200 # annotate this many randomly sampled items first for validation data before creating training data
 minimum_training_items = 100 # minimum number of training items before we first train a model
@@ -73,10 +72,43 @@ validation_not_related_data = "validation_data/not_related.csv"
 training_related_data = "training_data/related.csv"
 training_not_related_data = "training_data/not_related.csv"
 
+# default number to sample for each method
+number_random = 5
+number_model_outliers = 0
+number_cluster_based = 0
+number_representative = 0
+number_adaptive_representative = 0
+
+
+cli_args = sys.argv
+arg_list = cli_args[1:]
+
+unix_options = "r:m:c:p:a:"
+gnu_options = ["random=", "model_outliers=", "cluster_based=","representative=","adaptive_representative="]
+
+try:
+    arguments, values = getopt.getopt(arg_list, "", gnu_options)
+except getopt.error as err:
+    # output error, and return with an error code
+    print (str(err))
+    sys.exit(2)
+
+for arg, value in arguments:
+    if arg in ("--random", "r"):
+        number_random = int(value)
+    if arg in ("--model_outliers", "m"):
+        number_model_outliers = int(value)
+    if arg in ("--cluster_based", "c"):
+        number_cluster_based = int(value)
+    if arg in ("--representative", "p"):
+        number_representative = int(value)
+    if arg in ("--adaptive_representative", "a"):
+        number_adaptive_representative = int(value)
+        
+
 
 already_labeled = {} # tracking what is already labeled
 feature_index = {} # feature mapping for one-hot encoding
-
 
 
 def load_data(filepath, skip_already_labeled=False):
@@ -380,7 +412,6 @@ def get_rank(value, rankings):
 def get_cluster_samples(data, num_clusters=5, max_epochs=5, limit=5000):
     """Create clusters using cosine similarity
     
-
     Keyword arguments:
         data -- data to be clustered
         num_clusters -- the number of clusters to create
@@ -569,7 +600,6 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
             item[3] = "logit_rank_outlier"
             
             item[4] = 1 - (sum(ranks) / len(neuron_outputs)) # average rank
-            # TODO add lowest rank
             
             outliers.append(item)
             
@@ -722,49 +752,56 @@ elif training_count < minimum_training_items:
     append_data(training_not_related_data, not_related)
 else:
     # lets start Active Learning!! 
-    print("Sampling via Diversity Learning:\n")
-
-    sampled_data = get_random_items(data, number=5)
+    sampled_data = []
+    
+    # GET RANDOM SAMPLES
+    if number_random > 0:
+        print("Sampling "+str(number_random)+" Random Items\n")
+        sampled_data += get_random_items(data, number=number_random)
 
 
     # GET MODEL-BASED OUTLIER SAMPLES
-    '''
-    print("Sampling Model Outliers\n")
-    # train on 90% of the data, hold out 10% for validation
-    new_training_data = training_data[:int(len(training_data)*0.9)] 
-    validation_data = training_data[len(new_training_data):] 
+    if number_model_outliers > 0:
+        print("Sampling "+str(number_model_outliers)+" Model Outliers\n")
+        # train on 90% of the data, hold out 10% for validation
+        new_training_data = training_data[:int(len(training_data)*0.9)] 
+        validation_data = training_data[len(new_training_data):] 
+        
+        vocab_size = create_features()
+        model_path = train_model(training_data, evaluation_data=evaluation_data, vocab_size=vocab_size)
+        model = SimpleTextClassifier(2, vocab_size)
+        model.load_state_dict(torch.load(model_path))
     
-    vocab_size = create_features()
-    model_path = train_model(training_data, evaluation_data=evaluation_data, vocab_size=vocab_size)
-    model = SimpleTextClassifier(2, vocab_size)
-    model.load_state_dict(torch.load(model_path))
+        model_outliers = get_model_outliers(model, data, validation_data, number=number_model_outliers)
+        sampled_data +=  model_outliers 
 
-    model_outliers = get_model_outliers(model, data, validation_data, number=95)
-    sampled_data +=  model_outliers 
-
-    '''
 
     # GET CLUSTER-BASED SAMPLES
-    '''
-    print("Sampling via Clustering\n")
-    cluster_samples = get_cluster_samples(data, num_clusters=32)
-    sampled_data += cluster_samples 
-    '''
+    if number_cluster_based > 0:
+        print("Sampling "+str(number_cluster_based)+" via Clustering\n")
+        num_clusters = math.ceil(number_cluster_based / 3) # sampling 3 items per cluster by default
+        if num_clusters * 3 > number_cluster_based:
+            print("Adjusting sample to "+str(num_clusters * 3)+" to get an equal number per sample\n")
+        
+        cluster_samples = get_cluster_samples(data, num_clusters=num_clusters)
+        sampled_data += cluster_samples 
+    
 
     # GET REPRESENTATIVE SAMPLES
-    '''    
-    print("Sampling via Representative Sampling\n")
-    representative_samples = get_representative_samples(training_data, data, number=95)
-    sampled_data += representative_samples 
-    '''
+    if number_representative > 0:   
+        print("Sampling "+str(number_representative)+" via Representative Sampling\n")
+        representative_samples = get_representative_samples(training_data, data, number=number_representative)
+        sampled_data += representative_samples 
+
 
     # GET REPRESENTATIVE SAMPLES USING ADAPTIVE SAMPLING
-    '''
-    print("Sampling via Adaptive Representative Sampling\n")    
-    representative_adaptive_samples = get_adaptive_representative_samples(training_data, data, number=95)
-    sampled_data += representative_adaptive_samples 
-    '''
+    if number_adaptive_representative > 0:
+        print("Sampling "+str(number_adaptive_representative)+" via Adaptive Representative Sampling\n")    
+        representative_adaptive_samples = get_adaptive_representative_samples(training_data, data, number=number_adaptive_representative)
+        sampled_data += representative_adaptive_samples 
+  
     
+    # GET ANNOTATIONS FROM OUR SAMPLES
     shuffle(sampled_data)
     
     sampled_data = get_annotations(sampled_data)
