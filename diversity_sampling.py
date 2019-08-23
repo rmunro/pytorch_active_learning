@@ -595,15 +595,12 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
             hidden, logits, log_probs = model(feature_vector, return_all_layers=True)            
             
             neuron_outputs = logits.data.tolist()[0] #logits
-   
-            total_rank = 0;
-            
+               
             n=0
             ranks = []
             for output in neuron_outputs:
                 rank = get_rank(output, validation_rankings[n])
                 ranks.append(rank)
-                total_rank += rank
                 n += 1 
             
             item[3] = "logit_rank_outlier"
