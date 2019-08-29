@@ -1,32 +1,38 @@
-# Pytorch Active Learning
+# PyTorch Active Learning
 
-A simple human-in-the-loop system for classifying news headlines as disaster-related or not disaster-related.
+Code for human-in-the-loop Machine Learning system for classifying news headlines as disaster-related or not disaster-related.
 
-This is to accompany Chapter 2 from:  
+This is to accompany:  
 Human-in-the-Loop Machine Learning  
 Robert Munro  
-Manning Publications  
-
-I'll link to the Chapter when it comes out electronically.
-
-## What to expect:
-
-When you run the software, you will be prompted to classify news headlines as being disaster-related or not. The prompt will also tell you give you the option to see a precise defintions for what constitutes "disaster-related". You can also read those definitions in the code in the `detailed_instructions` variable: https://github.com/rmunro/pytorch_active_learning/blob/master/active_learning_basics.py
-
-After you have classified (annotated) enough date for evaluation and to begin training, you will see that machine learning models now train after each iteration of annotation, reporting the accuracy on your held-out evalation data as F-Scores and AUC. 
-
-After the initial iteration of training, which will just be on randomly-chosen data, you will start to see Active Learning kick-in to find unlabeled items that the model is confused about or are outliers with novel features. The Active Learning will be evident in the annotations, too, as the disaster-related headlines will be very rare initially, but should become around 40% of the data that you are annotating after a few iterations.
+Manning Publications
+https://www.manning.com/books/human-in-the-loop-machine-learning  
 
 
-## Getting started: 
+## Installation: 
 
-if you clone this repo and already have PyTorch installed, you should be able to get going immediately:
+If you clone this repo and already have PyTorch installed, you should be able to get going immediately:
 
 `git clone https://github.com/rmunro/pytorch_active_learning`
 
 `cd pytorch_active_learning`  
 
+### Running Chapter 2, Getting Started with Human-in-the-Loop Machine Learning
+
 `python active_learning_basics.py`
+
+When you run the software, you will be prompted to classify news headlines as being disaster-related or not. The prompt will also tell you give you the option to see a precise definitions for what constitutes "disaster-related". You can also read those definitions in the code in the `detailed_instructions` variable: https://github.com/rmunro/pytorch_active_learning/blob/master/active_learning_basics.py
+
+After you have classified (annotated) enough data for evaluation and to begin training, you will see that machine learning models now train after each iteration of annotation, reporting the accuracy on your held-out evaluation data as F-Scores and AUC. 
+
+After the initial iteration of training, which will just be on randomly-chosen data, you will start to see Active Learning kick-in to find unlabeled items that the model is confused about or are outliers with novel features. The Active Learning will be evident in the annotations, too, as the disaster-related headlines will be very rare initially, but should become around 40% of the data that you are annotating after a few iterations.
+
+
+### Running Chapter 4, Diversity Sampling
+
+`python diversity_sampling.py`
+
+This builds on the earlier dataset. See the chapter for the details of the feature flags that allow you to sample using different types of Diversity Sampling, like Model-based Outliers, Clustering, and Representative Sampling.
 
 
 ## Requirements: 
@@ -71,6 +77,13 @@ These local instructions are current as of June 2019. PyTorch are great about ma
 https://pytorch.org/
 
 Mac users should also make sure they are using python3.6 or later, as Mac's still ship with python2.7 by default. See above re support for 2.7 if you really require it.
+
+For pip users, it is possible that you can install pytorch with the following commands:
+ `pip3 install torch`
+or
+ `pip3 install torch`
+However, this sometimes works and sometimes doesn't depending on the versions of various libraries and your exact operating system. That's why `conda` is recommended over `pip` on the pytorch website.
+
 
 
 ## Data Sources
