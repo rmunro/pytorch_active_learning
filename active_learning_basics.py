@@ -268,7 +268,6 @@ def train_model(training_data, validation_data = "", evaluation_data = "", num_l
                 
         # train our model
         for item in epoch_data:
-            training_idx = random.randint(0,len(data)-1)
             features = item[1].split()
             label = int(item[2])
 
