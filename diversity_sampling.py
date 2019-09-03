@@ -36,9 +36,9 @@ import getopt, sys
 
 from random import shuffle
 from collections import defaultdict	
-from numpy import rank
+# from numpy import rank
 
-import uncertainty_sampling_pytorch
+from uncertainty_sampling_pytorch import UncertaintySampling
 from pytorch_clusters import CosineClusters 
 from pytorch_clusters import Cluster
 
@@ -53,7 +53,7 @@ minimum_evaluation_items = 1200 # annotate this many randomly sampled items firs
 minimum_validation_items = 200 # annotate this many randomly sampled items first for validation data before creating training data
 minimum_training_items = 100 # minimum number of training items before we first train a model
 
-epochs = 10 # number of epochs per training session
+epochs = 3 # number of epochs per training session
 select_per_epoch = 200  # number to select per epoch per label
 
 
@@ -79,13 +79,19 @@ number_cluster_based = 0
 number_representative = 0
 number_adaptive_representative = 0
 
+number_least_confidence = 0
+number_margin_confidence = 0
+number_ratio_confidence = 0
+number_entropy_based = 0
+
 verbose = False
 
 cli_args = sys.argv
 arg_list = cli_args[1:]
 
-unix_options = "r:m:c:p:a:v"
-gnu_options = ["random_remaining=", "model_outliers=", "cluster_based=","representative=","adaptive_representative=", "verbose"]
+gnu_options = ["random_remaining=", "model_outliers=", "cluster_based=","representative=","adaptive_representative="]
+gnu_options += ["least_confidence=", "margin_confidence=", "ratio_confidence=","entropy_based="]
+gnu_options += ["help", "verbose"]
 
 try:
     arguments, values = getopt.getopt(arg_list, "", gnu_options)
@@ -95,18 +101,33 @@ except getopt.error as err:
     sys.exit(2)
 
 for arg, value in arguments:
-    if arg in ("--random_remaining", "r"):
+    if arg == "--random_remaining":
         number_random = int(value)
-    if arg in ("--model_outliers", "m"):
+    if arg == "--model_outliers":
         number_model_outliers = int(value)
-    if arg in ("--cluster_based", "c"):
+    if arg == "--cluster_based":
         number_cluster_based = int(value)
-    if arg in ("--representative", "p"):
+    if arg == "--representative":
         number_representative = int(value)
-    if arg in ("--adaptive_representative", "a"):
+    if arg == "--adaptive_representative":
         number_adaptive_representative = int(value)
-    if arg in ("--verbose", "v"):
+    if arg == "--least_confidence":
+        number_least_confidence = int(value)
+    if arg == "--margin_confidence":
+        number_margin_confidence = int(value)
+    if arg == "--ratio_confidence":
+        number_ratio_confidence = int(value)
+    if arg == "--entropy_based":
+        number_entropy_based = int(value)
+    if arg == "--verbose":
         verbose = True
+    if arg == "--help":
+        print("\nValid options for Active Learning sampling: ")
+        for option in gnu_options:
+            print("\t"+option)
+        print("\nFor example `model_outliers=100` will sample 100 unlabeled items through model-based outlier sampling.\n")
+
+        exit()
     
 
 
@@ -202,12 +223,17 @@ def get_annotations(data, default_sampling_strategy="random"):
             text = data[ind][1]
             label = data[ind][2]
             strategy =  data[ind][3]
+            score = data[ind][4]
 
             if textid in already_labeled:
-                print("Skipping seen "+label)
+                if verbose:
+                    print("Skipping seen "+str(textid)+" with label "+label)
+                    print(data[ind])
                 ind+=1
             else:
                 print(annotation_instructions)
+                if verbose:
+                    print("Sampled with strategy `"+str(strategy)+"` and score "+str(round(score,3)))
                 label = str(input(text+"\n\n> ")) 
 
                 if label == "2":                   
@@ -286,7 +312,8 @@ class SimpleTextClassifier(nn.Module):  # inherit pytorch's nn.Module
             return log_softmax
                                 
 
-def make_feature_vector(features, feature_index):
+def make_feature_vector(text):
+    features = text.split()
     vec = torch.zeros(len(feature_index))
     for feature in features:
         if feature in feature_index:
@@ -330,12 +357,12 @@ def train_model(training_data, validation_data = "", evaluation_data = "", num_l
         # train our model
         for item in epoch_data:
             training_idx = random.randint(0,len(data)-1)
-            features = item[1].split()
+            text = item[1]
             label = int(item[2])
 
             model.zero_grad() 
 
-            feature_vec = make_feature_vector(features, feature_index)
+            feature_vec = make_feature_vector(text)
             target = torch.LongTensor([int(label)])
 
             log_probs = model(feature_vec)
@@ -376,40 +403,6 @@ def get_random_items(unlabeled_data, number = 10):
 
     return random_items
 
-
-def get_rank(value, rankings):
-    """ get the rank of the value in an ordered array as a percentage 
-
-
-    Keyword arguments:
-        value -- the value for which we want to return the ranked value
-        rankings -- the ordered array in which to determine the value's ranking
-    
-    returns linear distance between the indexes where value occurs, in the
-    case that there is not an exact match with the ranked values    
-    """
-    
-    index = 0 # default: ranking = 0
-    
-    for ranked_number in rankings:
-        if value < ranked_number:
-            break #NB: this O(N) loop could be optimized to O(log(N))
-        index += 1        
-    
-    if(index >= len(rankings)):
-        index = len(rankings) # maximum: ranking = 1
-        
-    elif(index > 0):
-        # get linear interpolation between the two closest indexes 
-        
-        diff = rankings[index] - rankings[index - 1]
-        perc = value - rankings[index - 1]
-        linear = perc / diff
-        index = float(index - 1) + linear
-    
-    absolute_ranking = index / len(rankings)
-
-    return(absolute_ranking)
 
 
 
@@ -518,25 +511,11 @@ def get_adaptive_representative_samples(training_data, unlabeled_data, number=20
     return samples
 
 
-def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=10000):
-    """Get outliers from unlabeled data in training data
 
-    Keyword arguments:
-        model -- current Machine Learning model for this task
-        unlabeled_data -- data that does not yet have a label
-        validation_data -- held out data drawn from the same distribution as the training data
-        number -- number of items to sample
-        limit -- sample from only this many items for faster sampling.
-
-    An outlier is defined as 
-    unlabeled_data with the lowest average from rank order of logits
-    where rank order is defined by validation data inference 
-
-    """
-
+def get_validation_rankings(model, validation_data):
     validation_rankings = [] # 2D array, every neuron by ordered list of output on validation data per neuron    
 
-    # Step 1: get per-neuron scores from validation data
+    # Get per-neuron scores from validation data
     if verbose:
         print("Getting neuron activation scores from validation data")
 
@@ -546,7 +525,7 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
             textid = item[0]
             text = item[1]
             
-            feature_vector = make_feature_vector(text.split(), feature_index)
+            feature_vector = make_feature_vector(text)
             hidden, logits, log_probs = model(feature_vector, return_all_layers=True)  
     
             neuron_outputs = logits.data.tolist()[0] #logits
@@ -563,15 +542,74 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
                         
             v += 1
     
-    # Step 2: rank-order the validation scores 
+    # Rank-order the validation scores 
     v=0
     for validation in validation_rankings:
         validation.sort() 
         validation_rankings[v] = validation
         v += 1
+      
+    return validation_rankings 
+
+
+
+def get_rank(value, rankings):
+    """ get the rank of the value in an ordered array as a percentage 
+
+
+    Keyword arguments:
+        value -- the value for which we want to return the ranked value
+        rankings -- the ordered array in which to determine the value's ranking
+    
+    returns linear distance between the indexes where value occurs, in the
+    case that there is not an exact match with the ranked values    
+    """
+    
+    index = 0 # default: ranking = 0
+    
+    for ranked_number in rankings:
+        if value < ranked_number:
+            break #NB: this O(N) loop could be optimized to O(log(N))
+        index += 1        
+    
+    if(index >= len(rankings)):
+        index = len(rankings) # maximum: ranking = 1
+        
+    elif(index > 0):
+        # get linear interpolation between the two closest indexes 
+        
+        diff = rankings[index] - rankings[index - 1]
+        perc = value - rankings[index - 1]
+        linear = perc / diff
+        index = float(index - 1) + linear
+    
+    absolute_ranking = index / len(rankings)
+
+    return(absolute_ranking)
+
             
 
-    # Step 3: iterate unlabeled items
+def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=10000):
+    """Get model outliers from unlabeled data 
+
+    Keyword arguments:
+        model -- current Machine Learning model for this task
+        unlabeled_data -- data that does not yet have a label
+        validation_data -- held out data drawn from the same distribution as the training data
+        number -- number of items to sample
+        limit -- sample from only this many items for faster sampling (-1 = no limit)
+
+    An outlier is defined as 
+    unlabeled_data with the lowest average from rank order of logits
+    where rank order is defined by validation data inference 
+
+    """
+
+    # Get per-neuron scores from validation data
+    validation_rankings = get_validation_rankings(model, validation_data)
+    
+
+    # Iterate over unlabeled items
     if verbose:
         print("Getting rankings for unlabeled data")
 
@@ -591,7 +629,7 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
 
             text = item[1]
 
-            feature_vector = make_feature_vector(text.split(), feature_index)
+            feature_vector = make_feature_vector(text)
             hidden, logits, log_probs = model(feature_vector, return_all_layers=True)            
             
             neuron_outputs = logits.data.tolist()[0] #logits
@@ -611,9 +649,8 @@ def get_model_outliers(model, unlabeled_data, validation_data, number=5, limit=1
             
     outliers.sort(reverse=True, key=lambda x: x[4])       
     return outliers[:number:]       
+  
             
-
-
 
 
 def evaluate_model(model, evaluation_data):
@@ -633,7 +670,7 @@ def evaluate_model(model, evaluation_data):
         for item in evaluation_data:
             _, text, label, _, _, = item
 
-            feature_vector = make_feature_vector(text.split(), feature_index)
+            feature_vector = make_feature_vector(text)
             log_probs = model(feature_vector)
 
             # get confidence that item is disaster-related
@@ -760,6 +797,7 @@ else:
     # lets start Active Learning!! 
     sampled_data = []
     
+        
     # GET RANDOM SAMPLES
     if number_random > 0:
         print("Sampling "+str(number_random)+" Random Remaining Items\n")
@@ -773,8 +811,9 @@ else:
         new_training_data = training_data[:int(len(training_data)*0.9)] 
         validation_data = training_data[len(new_training_data):] 
         
+        # Need to split our training data to make a leave-out validation set:
         vocab_size = create_features()
-        model_path = train_model(training_data, evaluation_data=evaluation_data, vocab_size=vocab_size)
+        model_path = train_model(new_training_data, evaluation_data=evaluation_data, vocab_size=vocab_size)
         model = SimpleTextClassifier(2, vocab_size)
         model.load_state_dict(torch.load(model_path))
     
@@ -808,6 +847,64 @@ else:
         representative_adaptive_samples = get_adaptive_representative_samples(training_data, data, number=number_adaptive_representative)
         sampled_data += representative_adaptive_samples 
   
+    
+    # RETRAIN MODEL IF WE NEED UNCERTAINTY SAMPLING:
+    if number_least_confidence + number_margin_confidence + number_ratio_confidence +number_entropy_based > 0:
+        print("Retraining model for Uncertainty Sampling\n")    
+
+        vocab_size = create_features()
+        model_path = train_model(training_data, evaluation_data=evaluation_data, vocab_size=vocab_size)
+        model = SimpleTextClassifier(2, vocab_size)
+        model.load_state_dict(torch.load(model_path)) 
+        
+        uncertainty_sampling = UncertaintySampling()       
+  
+        # GET LEAST CONFIDENCE SAMPLES
+        if number_least_confidence > 0:
+            print("Sampling "+str(number_least_confidence)+" via Least Confidence Sampling\n")    
+    
+            least_confidence_samples = uncertainty_sampling.get_uncertainty_samples(model, data, 
+                                                                                    uncertainty_sampling.least_confidence, 
+                                                                                    make_feature_vector, 
+                                                                                    number=number_least_confidence)
+            sampled_data += least_confidence_samples 
+
+        # GET MARGIB OF CONFIDENCE SAMPLES
+        if number_margin_confidence > 0:
+            print("Sampling "+str(number_margin_confidence)+" via Margin of Confidence Sampling\n")    
+    
+            # margin_confidence_samples = get_margin_confidence_samples(model, data, number=number_margin_confidence)
+            margin_confidence_samples = uncertainty_sampling.get_uncertainty_samples(model, data, 
+                                                                                    uncertainty_sampling.margin_confidence, 
+                                                                                    make_feature_vector, 
+                                                                                    number=number_margin_confidence)
+            sampled_data += margin_confidence_samples 
+
+        # GET LEAST CONFIDENCE SAMPLES
+        if number_ratio_confidence > 0:
+            print("Sampling "+str(number_ratio_confidence)+" via Ratio of Confidence Sampling\n")    
+    
+            # ratio_confidence_samples = get_ratio_confidence_samples(model, data, number=number_ratio_confidence)
+            ratio_confidence_samples = uncertainty_sampling.get_uncertainty_samples(model, data, 
+                                                                                    uncertainty_sampling.ratio_confidence, 
+                                                                                    make_feature_vector, 
+                                                                                    number=number_ratio_confidence)
+            
+            sampled_data += ratio_confidence_samples 
+
+        # GET LEAST CONFIDENCE SAMPLES
+        if number_entropy_based > 0:
+            print("Sampling "+str(number_entropy_based)+" via Entropy-based Sampling\n")    
+    
+            # entropy_based_samples = get_entropy_based_samples(model, data, number=number_entropy_based)
+            entropy_based_samples = uncertainty_sampling.get_uncertainty_samples(model, data, 
+                                                                                    uncertainty_sampling.entropy_based, 
+                                                                                    make_feature_vector, 
+                                                                                    number=number_entropy_based)
+            sampled_data += entropy_based_samples 
+
+
+
     
     # GET ANNOTATIONS FROM OUR SAMPLES
     shuffle(sampled_data)
