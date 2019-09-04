@@ -1,13 +1,41 @@
+#!/usr/bin/env python
+
+"""UNCERTAINTY SAMPLING
+ 
+Uncertainty Sampling examples for Active Learning in PyTorch 
+
+This is an open source example to accompany Chapter 3 from the book:
+"Human-in-the-Loop Machine Learning"
+
+It contains four Active Learning strategies:
+1. Least Confidence Sampling
+2. Margin of Confidence Sampling
+3. Ratio of Confidence Sampling
+4. Entropy-based Sampling
+
+
+"""
+
 import torch 
 import math
 from random import shuffle
 
+
+__author__ = "Robert Munro"
+__license__ = "MIT"
+__version__ = "1.0.1"
+
+   
 
 class UncertaintySampling():
     """Active Learning methods to sample for uncertainty
     
     
     """
+    
+    def __init__(self, verbose):
+        self.verbose = verbose
+    
 
     def least_confidence(self, prob_dist, sorted=False):
         """ 
@@ -95,7 +123,7 @@ class UncertaintySampling():
         
         
         
-    def get_uncertainty_samples(self, model, unlabeled_data, method, feature_method, number=5, limit=10000):
+    def get_samples(self, model, unlabeled_data, method, feature_method, number=5, limit=10000):
         """Get samples via the given uncertainty sampling method from unlabeled data 
     
         Keyword arguments:
@@ -111,7 +139,7 @@ class UncertaintySampling():
     
         samples = []
     
-        if limit == -1 and len(unlabeled_data) > 10000 and verbose: # we're drawing from *a lot* of data this will take a while                                               
+        if limit == -1 and len(unlabeled_data) > 10000 and self.verbose: # we're drawing from *a lot* of data this will take a while                                               
             print("Get predictions for a large amount of unlabeled data: this might take a while")
         else:
             # only apply the model to a limited number of items                                                                            
