@@ -74,9 +74,9 @@ class UncertaintySampling():
             sorted -- if the probability distribution is pre-sorted from largest to smallest
         """
         if not sorted:
-            prob_dist, _ = torch.sort(prob_dist, descending=True)
+            prob_dist, _ = torch.sort(prob_dist, descending=True) # sort probs so largest is first
         
-        difference = (prob_dist.data[0] - prob_dist.data[1]) # sort probs so that largest is first
+        difference = (prob_dist.data[0] - prob_dist.data[1]) # difference between top two props
         margin_conf = 1 - difference 
         
         return margin_conf.item()
@@ -95,9 +95,9 @@ class UncertaintySampling():
             sorted -- if the probability distribution is pre-sorted from largest to smallest
         """
         if not sorted:
-            prob_dist, _ = torch.sort(prob_dist, descending=True) # sort probs so that largest is first        
+            prob_dist, _ = torch.sort(prob_dist, descending=True) # sort probs so largest is first        
             
-        ratio_conf = prob_dist.data[1] / prob_dist.data[0]
+        ratio_conf = prob_dist.data[1] / prob_dist.data[0] # ratio between top two props
         
         return ratio_conf.item()
     
@@ -121,6 +121,30 @@ class UncertaintySampling():
         
         return normalized_entropy.item()
         
+ 
+   
+    def softmax(self, scores, base=math.e):
+        """Returns softmax array for array of scores
+        
+        Converts a set of raw scores from a model (logits) into a 
+        probability distribution via softmax.
+            
+        The probability distribution will be a set of real numbers
+        such that each is in the range 0-1.0 and the sum is 1.0.
+    
+        Assumes input is a pytorch tensor: tensor([1.0, 4.0, 2.0, 3.0])
+            
+        Keyword arguments:
+            prediction -- a pytorch tensor of any positive/negative real numbers.
+            base -- the base for the exponential (default e)
+        """
+        exps = (base**scores.to(dtype=torch.float)) # exponential for each value in array
+        sum_exps = torch.sum(exps) # sum of all exponentials
+
+        prob_dist = exps / sum_exps # normalize exponentials 
+        return prob_dist
+        
+   
         
         
     def get_samples(self, model, unlabeled_data, method, feature_method, number=5, limit=10000):
@@ -168,5 +192,5 @@ class UncertaintySampling():
         return samples[:number:]        
         
     
-    
+
         

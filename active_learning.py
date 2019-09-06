@@ -611,7 +611,7 @@ else:
             sampled_data += uncert_sampling.get_samples(model, data, uncert_sampling.least_confidence, 
                                                         make_feature_vector, number=number_least_confidence)
 
-        # GET MARGIB OF CONFIDENCE SAMPLES
+        # GET MARGIN OF CONFIDENCE SAMPLES
         if number_margin_confidence > 0:
             print("Sampling "+str(number_margin_confidence)+" via Margin of Confidence Sampling\n")    
     
