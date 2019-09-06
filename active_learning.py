@@ -43,7 +43,7 @@ minimum_evaluation_items = 1200 # annotate this many randomly sampled items firs
 minimum_validation_items = 200 # annotate this many randomly sampled items first for validation data before creating training data
 minimum_training_items = 100 # minimum number of training items before we first train a model
 
-epochs = 3 # number of epochs per training session
+epochs = 10 # number of epochs per training session
 select_per_epoch = 200  # number to select per epoch per label
 
 
