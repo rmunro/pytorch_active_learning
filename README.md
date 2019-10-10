@@ -10,14 +10,22 @@ The code is stand-alone and can be used with the book.
 
 # Active Learning methods in the library
 
-The code currently contains methods for :
+The code currently contains methods for:
+
 *Least Confidence sampling* 
+
 *Margin of Confidence sampling*
+
 *Ratio of Confidence sampling*
+
 *Entropy (classification entropy)*
+
 *Model-based outlier sampling*
+
 *Cluster-based sampling*
+
 *Representative sampling* 
+
 *Adaptive Representative sampling*
 
 The book covers how to apply them indepedently, in combination, and for different use cases in Computer Vision and Natural Language Processing. It also covers strategies for sampling for real-world diversity to avoid bias.
