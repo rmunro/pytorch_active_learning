@@ -80,6 +80,8 @@ number_representative_clusters = 0
 number_clustered_uncertainty = 0
 number_uncertain_model_outliers = 0
 number_high_uncertainty_cluster = 0
+number_transfer_learned_uncertainty = 0
+number_atlas = 0
 
 verbose = False
 
@@ -94,7 +96,8 @@ gnu_options += ["least_confidence=", "margin_confidence=", "ratio_confidence=","
 gnu_options += ["model_outliers=", "cluster_based=","representative=","adaptive_representative="]
 # advanced active learning
 gnu_options += ["representative_clusters=", "clustered_uncertainty=", "uncertain_model_outliers="]
-gnu_options += ["high_uncertainty_cluster="]
+gnu_options += ["high_uncertainty_cluster=", "transfer_learned_uncertainty="]
+gnu_options += ["atlas="]
 # options
 gnu_options += ["help", "verbose"]
 
@@ -132,6 +135,10 @@ for arg, value in arguments:
         number_uncertain_model_outliers = int(value)
     if arg == "--high_uncertainty_cluster":
         number_high_uncertainty_cluster = int(value)
+    if arg == "--transfer_learned_uncertainty":
+        number_transfer_learned_uncertainty = int(value)
+    if arg == "--atlas":
+        number_atlas = int(value)
     if arg == "--verbose":
         verbose = True
     if arg == "--help":
@@ -369,7 +376,6 @@ def train_model(training_data, validation_data = "", evaluation_data = "", num_l
                 
         # train our model
         for item in epoch_data:
-            training_idx = random.randint(0,len(data)-1)
             text = item[1]
             label = int(item[2])
 
@@ -579,8 +585,8 @@ else:
         model.load_state_dict(torch.load(model_path)) 
 
     # RETRAIN MODEL WITH TRAIN/VALIDATION SPLIT IF WE NEED IT FOR ANY METHOD:
-    if number_model_outliers + number_uncertain_model_outliers > 0:
-        print("Retraining model for Model-based Outliers \n")    
+    if number_model_outliers + number_uncertain_model_outliers + number_transfer_learned_uncertainty + number_atlas > 0:
+        print("Retraining model for Model-based Outliers or Deep Active Transfer Learning \n")    
 
         # Need to split our training data to make a leave-out validation set:            
         new_training_data = training_data[:int(len(training_data)*0.9)] 
@@ -588,8 +594,8 @@ else:
 
         vocab_size = create_features()
         model_path = train_model(new_training_data, evaluation_data=evaluation_data, vocab_size=vocab_size)
-        outlier_model = SimpleTextClassifier(2, vocab_size)
-        outlier_model.load_state_dict(torch.load(model_path))
+        validation_model = SimpleTextClassifier(2, vocab_size)
+        validation_model.load_state_dict(torch.load(model_path))
 
 
     uncert_sampling = UncertaintySampling(verbose)    
@@ -604,7 +610,7 @@ else:
         if number_model_outliers > 0:
             print("Sampling "+str(number_model_outliers)+" Model Outliers\n")
         
-            sampled_data += diversity_samp.get_model_outliers(outlier_model, data, new_validation_data, 
+            sampled_data += diversity_samp.get_model_outliers(validation_model, data, new_validation_data, 
                                                               make_feature_vector, number=number_model_outliers)
 
 
@@ -689,7 +695,7 @@ else:
         print("Sampling "+str(number_uncertain_model_outliers)+" via Model-Outlier Least Confidence\n")
         
         
-        sampled_data += adv_samping.get_uncertain_model_outlier_samples(model, outlier_model, data,  
+        sampled_data += adv_samping.get_uncertain_model_outlier_samples(model, validation_model, data,  
                         new_validation_data, uncert_sampling.least_confidence, make_feature_vector, 
                         number=number_uncertain_model_outliers)
 
@@ -697,6 +703,20 @@ else:
         print("Sampling "+str(number_high_uncertainty_cluster)+" via highest entropy clusters\n")
         sampled_data += adv_samping.get_high_uncertainty_cluster(model, data, uncert_sampling.entropy_based, 
                                                 make_feature_vector, number=number_high_uncertainty_cluster)
+
+
+    if number_transfer_learned_uncertainty > 0:
+        print("Sampling "+str(number_transfer_learned_uncertainty)+" via deep active transfer learning for uncertainty\n")       
+        sampled_data += adv_samping.get_deep_active_transfer_learning_uncertainty_samples(validation_model, 
+                                                data, new_validation_data, 
+                                                make_feature_vector, number=number_transfer_learned_uncertainty)
+                                                
+    if number_atlas > 0:
+        print("Sampling "+str(number_atlas)+" via adaptive transfer learning for active samplng (ATLAS)\n")       
+        sampled_data += adv_samping.get_atlas_samples(validation_model, 
+                                                data, new_validation_data, 
+                                                make_feature_vector, number=number_atlas)
+                                                
 
    
     # GET ANNOTATIONS FROM OUR SAMPLES
