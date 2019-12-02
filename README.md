@@ -28,6 +28,13 @@ The code currently contains methods for:
 
 *Adaptive Representative sampling*
 
+*Active Transfer Learning for Uncertainty Sampling*
+
+*Active Transfer Learning for Representative Sampling*
+
+*Active Transfer Learning for Adaptive Sampling (ATLAS)*
+
+
 The book covers how to apply them indepedently, in combination, and for different use cases in Computer Vision and Natural Language Processing. It also covers strategies for sampling for real-world diversity to avoid bias.
 
 ## Installation: 
@@ -86,7 +93,7 @@ https://azure.microsoft.com/en-us/develop/pytorch/
 The Azure Notebook option might also be a good option, but I haven't tested it out: please let me know if you do! 
 
 ### Linux / Mac / Windows
-If you're install locally or on a cloud server without PyTorch pre-installed, you can use these options:  
+If you're installing locally or on a cloud server without PyTorch pre-installed, you can use these options:  
 
 Mac:  
 `conda install pytorch torchvision -c pytorch`
