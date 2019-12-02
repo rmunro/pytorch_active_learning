@@ -32,12 +32,12 @@ from random import shuffle
 from collections import defaultdict	
 # from numpy import rank
 
-from uncertainty_sampling_pytorch import UncertaintySampling
+from uncertainty_sampling import UncertaintySampling
 from pytorch_clusters import CosineClusters 
 from pytorch_clusters import Cluster
 
 if sys.argv[0] == "diversity_sampling.py":
-        import active_learning
+    import active_learning
 
 
 __author__ = "Robert Munro"
@@ -48,7 +48,7 @@ __version__ = "1.0.1"
 class DiversitySampling():
 
 
-    def __init__(self, verbose):
+    def __init__(self, verbose=False):
         self.verbose = verbose
 
 

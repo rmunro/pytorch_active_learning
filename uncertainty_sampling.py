@@ -33,7 +33,7 @@ class UncertaintySampling():
     
     """
     
-    def __init__(self, verbose):
+    def __init__(self, verbose=False):
         self.verbose = verbose
     
 
@@ -154,6 +154,7 @@ class UncertaintySampling():
             model -- current Machine Learning model for this task
             unlabeled_data -- data that does not yet have a label
             method -- method for uncertainty sampling (eg: least_confidence())
+            feature_method -- the method for extracting features from your data
             number -- number of items to sample
             limit -- sample from only this many predictions for faster sampling (-1 = no limit)
     
