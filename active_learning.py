@@ -44,7 +44,7 @@ minimum_evaluation_items = 1200 # annotate this many randomly sampled items firs
 minimum_validation_items = 200 # annotate this many randomly sampled items first for validation data before creating training data
 minimum_training_items = 100 # minimum number of training items before we first train a model
 
-epochs = 5 # number of epochs per training session
+epochs = 20 # default number of epochs per training session
 select_per_epoch = 200  # number to select per epoch per label
 
 
@@ -244,6 +244,9 @@ def get_annotations(data, default_sampling_strategy="random"):
             label = data[ind][2]
             strategy =  data[ind][3]
             score = data[ind][4]
+            
+            if strategy == "":
+                strategy = "random"
 
             if textid in already_labeled:
                 if verbose:
@@ -687,7 +690,7 @@ else:
         
         sampled_data += adv_samping.get_clustered_uncertainty_samples(model, data, 
                                         uncert_sampling.least_confidence, make_feature_vector, 
-                                        number_clusters=math.ceil(number_clustered_uncertainty/5))
+                                        num_clusters=math.ceil(number_clustered_uncertainty/5))
 
 
 

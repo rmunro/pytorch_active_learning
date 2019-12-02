@@ -76,7 +76,7 @@ class AdvancedActiveLearning():
 
 
 
-    def get_uncertain_model_outlier_samples(self, model, outlier_model, unlabeled_data, training_data, validation_data, method, feature_method,
+    def get_uncertain_model_outlier_samples(self, model, outlier_model, unlabeled_data, validation_data, method, feature_method,
                                                         perc_uncertain = 0.1, number=10, limit=10000): 
         """Gets the most uncertain items and samples the biggest model outliers among them
         
