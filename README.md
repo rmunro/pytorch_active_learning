@@ -1,6 +1,6 @@
 # PyTorch Active Learning
 
-Library for commmon Active Learning methods to accompany:  
+Library for common Active Learning methods to accompany:  
 Human-in-the-Loop Machine Learning  
 Robert Munro  
 Manning Publications
