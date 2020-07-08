@@ -609,7 +609,7 @@ else:
     if number_cluster_based + number_representative + number_adaptive_representative + number_model_outliers > 0:
         print("Sampling for Diversity")
         
-        # GET MODEL-BASED OUTLIER SAMPLES
+        # MODEL-BASED OUTLIER SAMPLES
         if number_model_outliers > 0:
             print("Sampling "+str(number_model_outliers)+" Model Outliers\n")
         
@@ -617,7 +617,7 @@ else:
                                                               make_feature_vector, number=number_model_outliers)
 
 
-        # GET CLUSTER-BASED SAMPLES
+        # CLUSTER-BASED SAMPLES
         if number_cluster_based > 0:
             print("Sampling "+str(number_cluster_based)+" via Clustering")
             num_clusters = math.ceil(number_cluster_based / 5) # sampling 5 items per cluster by default
@@ -629,13 +629,13 @@ else:
             sampled_data += diversity_samp.get_cluster_samples(data, num_clusters=num_clusters)
         
     
-        # GET REPRESENTATIVE SAMPLES
+        # REPRESENTATIVE SAMPLES
         if number_representative > 0:   
             print("Sampling "+str(number_representative)+" via Representative Sampling\n")
             sampled_data += diversity_samp.get_representative_samples(training_data, data, number=number_representative)
     
     
-        # GET REPRESENTATIVE SAMPLES USING ADAPTIVE SAMPLING
+        # REPRESENTATIVE SAMPLES USING ADAPTIVE SAMPLING
         if number_adaptive_representative > 0:
             print("Sampling "+str(number_adaptive_representative)+" via Adaptive Representative Sampling\n")    
             sampled_data += diversity_samp.get_adaptive_representative_samples(training_data, data, 
@@ -644,14 +644,14 @@ else:
         
     if number_least_confidence + number_margin_confidence + number_ratio_confidence + number_entropy_based > 0:   
   
-        # GET LEAST CONFIDENCE SAMPLES
+        # LEAST CONFIDENCE SAMPLES
         if number_least_confidence > 0:
             print("Sampling "+str(number_least_confidence)+" via Least Confidence Sampling\n")    
     
             sampled_data += uncert_sampling.get_samples(model, data, uncert_sampling.least_confidence, 
                                                         make_feature_vector, number=number_least_confidence)
 
-        # GET MARGIN OF CONFIDENCE SAMPLES
+        # MARGIN OF CONFIDENCE SAMPLES
         if number_margin_confidence > 0:
             print("Sampling "+str(number_margin_confidence)+" via Margin of Confidence Sampling\n")    
     
@@ -659,7 +659,7 @@ else:
             sampled_data += uncert_sampling.get_samples(model, data, uncert_sampling.margin_confidence, 
                                                         make_feature_vector, number=number_margin_confidence)
 
-        # GET LEAST CONFIDENCE SAMPLES
+        # RATIO OF CONFIDENCE SAMPLES
         if number_ratio_confidence > 0:
             print("Sampling "+str(number_ratio_confidence)+" via Ratio of Confidence Sampling\n")    
     
@@ -667,7 +667,7 @@ else:
             sampled_data += uncert_sampling.get_samples(model, data, uncert_sampling.ratio_confidence, 
                                                         make_feature_vector, number=number_ratio_confidence)
             
-        # GET LEAST CONFIDENCE SAMPLES
+        # ENTROPY-BASED SAMPLES
         if number_entropy_based > 0:
             print("Sampling "+str(number_entropy_based)+" via Entropy-based Sampling\n")    
     
@@ -678,12 +678,15 @@ else:
 
 
     # ADVANCED TECHNIQUES
+    
+    # REPRESENTATIVE CLUSTERS
     if number_representative_clusters > 0:
         print("Sampling "+str(number_representative_clusters)+" via Representative Clusters\n")    
         
         sampled_data += adv_samping.get_representative_cluster_samples(training_data, data, 
                                                             number=number_representative_clusters)
-
+                                                            
+    # CLUSTERED UNCERTAINTY
     if number_clustered_uncertainty > 0:
         print("Sampling "+str(number_clustered_uncertainty)+" via Clustered Least Confidence\n")
         uncert_sampling = UncertaintySampling(verbose)
@@ -693,7 +696,7 @@ else:
                                         num_clusters=math.ceil(number_clustered_uncertainty/5))
 
 
-
+    # UNCERTAIN MODEL OUTLIERS
     if number_uncertain_model_outliers > 0:
         print("Sampling "+str(number_uncertain_model_outliers)+" via Model-Outlier Least Confidence\n")
         
@@ -702,18 +705,21 @@ else:
                         new_validation_data, uncert_sampling.least_confidence, make_feature_vector, 
                         number=number_uncertain_model_outliers)
 
+
+    # HIGH UNCERTAINY CLUSTERS
     if number_high_uncertainty_cluster > 0:
         print("Sampling "+str(number_high_uncertainty_cluster)+" via highest entropy clusters\n")
         sampled_data += adv_samping.get_high_uncertainty_cluster(model, data, uncert_sampling.entropy_based, 
                                                 make_feature_vector, number=number_high_uncertainty_cluster)
 
-
+    # ACTIVE TRANSFER LEARNING FOR UNCERTAINTY
     if number_transfer_learned_uncertainty > 0:
         print("Sampling "+str(number_transfer_learned_uncertainty)+" via deep active transfer learning for uncertainty\n")       
         sampled_data += adv_samping.get_deep_active_transfer_learning_uncertainty_samples(validation_model, 
                                                 data, new_validation_data, 
                                                 make_feature_vector, number=number_transfer_learned_uncertainty)
-                                                
+
+    # ACTIVE TRANSFER LEARNING FOR ADAPTIVE SAMPLING
     if number_atlas > 0:
         print("Sampling "+str(number_atlas)+" via adaptive transfer learning for active samplng (ATLAS)\n")       
         sampled_data += adv_samping.get_atlas_samples(validation_model, 

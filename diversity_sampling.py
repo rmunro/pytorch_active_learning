@@ -219,7 +219,6 @@ class DiversitySampling():
     def get_rank(self, value, rankings):
         """ get the rank of the value in an ordered array as a percentage 
     
-    
         Keyword arguments:
             value -- the value for which we want to return the ranked value
             rankings -- the ordered array in which to determine the value's ranking
@@ -272,7 +271,6 @@ class DiversitySampling():
         # Get per-neuron scores from validation data
         validation_rankings = self.get_validation_rankings(model, validation_data, feature_method)
         
-    
         # Iterate over unlabeled items
         if self.verbose:
             print("Getting rankings for unlabeled data")
