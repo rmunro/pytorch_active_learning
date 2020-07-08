@@ -26,7 +26,7 @@ import csv
 import re
 import os
 from random import shuffle
-from collections import defaultdict	
+from collections import defaultdict    
 
 
 __author__ = "Robert Munro"
@@ -69,8 +69,8 @@ def load_data(filepath, skip_already_labeled=False):
         reader = csv.reader(csvfile)
         for row in reader:
             if skip_already_labeled and row[0] in already_labeled:
-        	    continue
-        		
+                continue
+                
             if len(row) < 3:
                 row.append("") # add empty col for LABEL to add later
             if len(row) < 4:
@@ -278,10 +278,10 @@ def train_model(training_data, validation_data = "", evaluation_data = "", num_l
 
             log_probs = model(feature_vec)
 
-			# compute loss function, do backward pass, and update the gradient
+            # compute loss function, do backward pass, and update the gradient
             loss = loss_function(log_probs, target)
             loss.backward()
-            optimizer.step()	
+            optimizer.step()    
 
     fscore, auc = evaluate_model(model, evaluation_data)
     fscore = round(fscore,3)
@@ -301,18 +301,18 @@ def train_model(training_data, validation_data = "", evaluation_data = "", num_l
 def get_low_conf_unlabeled(model, unlabeled_data, number=80, limit=10000):
     confidences = []
     if limit == -1: # we're predicting confidence on *everything* this will take a while
-    	print("Get confidences for unlabeled data (this might take a while)")
+        print("Get confidences for unlabeled data (this might take a while)")
     else: 
-    	# only apply the model to a limited number of items
-    	shuffle(unlabeled_data)
-    	unlabeled_data = unlabeled_data[:limit]
+        # only apply the model to a limited number of items
+        shuffle(unlabeled_data)
+        unlabeled_data = unlabeled_data[:limit]
     
     with torch.no_grad():
         for item in unlabeled_data:
             textid = item[0]
             if textid in already_labeled:
                 continue
-
+            item[3] = "random_remaining"
             text = item[1]
 
             feature_vector = make_feature_vector(text.split(), feature_index)
@@ -475,7 +475,7 @@ if evaluation_count <  minimum_evaluation_items:
     print(str(needed)+" more annotations needed")
 
     data = get_annotations(data) 
-	
+    
     related = []
     not_related = []
 
@@ -517,7 +517,7 @@ elif training_count < minimum_training_items:
 else:
     # lets start Active Learning!! 
 
-	# Train new model with current training data
+    # Train new model with current training data
     vocab_size = create_features()
     model_path = train_model(training_data, evaluation_data=evaluation_data, vocab_size=vocab_size)
 
@@ -526,7 +526,7 @@ else:
     model = SimpleTextClassifier(2, vocab_size)
     model.load_state_dict(torch.load(model_path))
 
-	# get 100 items per iteration with the following breakdown of strategies:
+    # get 100 items per iteration with the following breakdown of strategies:
     random_items = get_random_items(data, number=10)
     low_confidences = get_low_conf_unlabeled(model, data, number=80)
     outliers = get_outliers(training_data+random_items+low_confidences, data, number=10)
@@ -552,7 +552,7 @@ else:
 if training_count > minimum_training_items:
     print("\nRetraining model with new data")
     
-	# UPDATE OUR DATA AND (RE)TRAIN MODEL WITH NEWLY ANNOTATED DATA
+    # UPDATE OUR DATA AND (RE)TRAIN MODEL WITH NEWLY ANNOTATED DATA
     training_data = load_data(training_related_data) + load_data(training_not_related_data)
     training_count = len(training_data)
 
