@@ -235,7 +235,7 @@ class AdvancedActiveLearning():
                 
                 score = method(prob_dist.data[0]) # get the specific type of uncertainty sampling
                 
-                total_uncertainty += 1.0
+                total_uncertainty += score
                 count += 1
                 
             average_uncertainty = total_uncertainty / count
