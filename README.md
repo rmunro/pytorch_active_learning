@@ -2,7 +2,7 @@
 
 Library for common Active Learning methods to accompany:  
 Human-in-the-Loop Machine Learning  
-Robert Munro  
+Robert Monarch  
 Manning Publications
 https://www.manning.com/books/human-in-the-loop-machine-learning  
 
