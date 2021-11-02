@@ -214,7 +214,8 @@ class DiversitySampling():
           
         return validation_rankings 
     
-    
+    def rt(str):
+    	return str
     
     def get_rank(self, value, rankings):
         """ get the rank of the value in an ordered array as a percentage 
