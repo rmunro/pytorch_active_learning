@@ -2,7 +2,7 @@ certifi==2020.6.20
 mkl-fft==1.1.0
 mkl-random==1.1.1
 mkl-service==2.3.0
-numpy==1.18.5
+numpy==1.22.0
 olefile==0.46
 Pillow==8.3.2
 six==1.15.0
