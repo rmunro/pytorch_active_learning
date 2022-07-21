@@ -153,7 +153,7 @@ def get_annotations(data, default_sampling_strategy="random"):
                 ind+=1
             else:
                 print(annotation_instructions)
-                ann_needed = needed - ind
+                ann_needed = needed - ind # provide an update on number of annotations needed
                 print(str(ann_needed)+" more annotations needed \n")
                 label = str(input(text+"\n\n> ")) 
 
